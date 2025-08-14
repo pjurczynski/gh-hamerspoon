@@ -3,7 +3,7 @@
 
 local menu = hs.menubar.new()
 local refreshInterval = 3600 -- 1 hour in seconds
-local prScriptPath = "/Users/pjurczyn/code/pix/list-prs-awaiting-my-review.js"
+local prScriptPath = "/Users/pjurczyn/code/pix/hammerspoon-github-pr-menu/list-prs-awaiting-my-review.js"
 
 -- Menu bar item text when there are no PRs
 local noPRsText = "✓ No PRs"

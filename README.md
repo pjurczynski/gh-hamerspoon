@@ -11,6 +11,13 @@ This Hammerspoon configuration displays GitHub pull requests awaiting your revie
 - Manual refresh option
 - Quick link to GitHub review page
 
+## Project Files
+
+- `init.lua` - Basic Hammerspoon configuration
+- `enhanced-init.lua` - Advanced version with clickable PR URLs  
+- `list-prs-awaiting-my-review.js` - GitHub PR listing script
+- `pr-check-wrapper.js` - Directory-independent wrapper script
+
 ## Prerequisites
 
 1. **Hammerspoon**: Download and install from [hammerspoon.org](https://www.hammerspoon.org/)
@@ -29,8 +36,8 @@ This Hammerspoon configuration displays GitHub pull requests awaiting your revie
    cat init.lua >> ~/.hammerspoon/init.lua
    ```
 
-2. **Update the script path**: 
-   Edit the `prScriptPath` variable in `init.lua` to point to your `list-prs-awaiting-my-review.js` script location.
+2. **The script path is already configured**: 
+   The `prScriptPath` variable in both `init.lua` files points to the included `list-prs-awaiting-my-review.js` script.
 
 3. **Reload Hammerspoon**: 
    - Open Hammerspoon app
