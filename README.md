@@ -26,18 +26,35 @@ This Hammerspoon configuration displays GitHub pull requests awaiting your revie
 
 ## Installation
 
-1. **Copy the configuration**:
+### Quick Install (Recommended)
+
+```bash
+# Run the install script
+./install.sh
+```
+
+### Manual Install
+
+1. **Copy all files to your Hammerspoon directory**:
    ```bash
-   # If you don't have a Hammerspoon config yet:
+   # Create Hammerspoon config directory if it doesn't exist
    mkdir -p ~/.hammerspoon
+   
+   # Copy the PR script (required)
+   cp list-prs-awaiting-my-review.js ~/.hammerspoon/
+   
+   # Option 1: Use basic configuration
    cp init.lua ~/.hammerspoon/init.lua
    
-   # If you already have Hammerspoon config, append to existing init.lua:
-   cat init.lua >> ~/.hammerspoon/init.lua
+   # Option 2: Use enhanced configuration (recommended)
+   cp enhanced-init.lua ~/.hammerspoon/init.lua
+   
+   # Option 3: If you already have a Hammerspoon config, append:
+   cat enhanced-init.lua >> ~/.hammerspoon/init.lua
    ```
 
-2. **The script path is already configured**: 
-   The `prScriptPath` variable in both `init.lua` files points to the included `list-prs-awaiting-my-review.js` script.
+2. **The script paths are automatically detected**: 
+   The configuration will look for `list-prs-awaiting-my-review.js` in your `~/.hammerspoon` directory.
 
 3. **Reload Hammerspoon**: 
    - Open Hammerspoon app

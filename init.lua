@@ -3,7 +3,9 @@
 
 local menu = hs.menubar.new()
 local refreshInterval = 3600 -- 1 hour in seconds
-local prScriptPath = "/Users/pjurczyn/code/pix/hammerspoon-github-pr-menu/list-prs-awaiting-my-review.js"
+-- Get the directory where this config file is located
+local configDir = hs.configdir or os.getenv("HOME") .. "/.hammerspoon"
+local prScriptPath = configDir .. "/list-prs-awaiting-my-review.js"
 -- No default repo - will search across all repositories you have access to
 
 -- Menu bar item text when there are no PRs
