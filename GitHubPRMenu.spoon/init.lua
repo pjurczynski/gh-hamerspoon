@@ -71,16 +71,76 @@ end
 
 function obj:updatePRMenu()
     local scriptPath = spoonPath .. "/list-prs-awaiting-my-review.js"
-    local output, status = hs.execute("node \"" .. scriptPath .. "\"")
+    
+    -- Find node executable (try common locations)
+    local nodePath = nil
+    local nodePaths = {
+        "/usr/local/bin/node",
+        "/opt/homebrew/bin/node", 
+        os.getenv("HOME") .. "/.local/share/nvm/v22.2.0/bin/node",
+        "/usr/bin/node"
+    }
+    
+    for _, path in ipairs(nodePaths) do
+        local attr = hs.fs.attributes(path)
+        if attr then
+            nodePath = path
+            break
+        end
+    end
+    
+    if not nodePath then
+        -- Fallback: try to find node using which
+        local whichOutput = hs.execute("which node")
+        if whichOutput and whichOutput:match("^/") then
+            nodePath = whichOutput:gsub("%s+", "")
+        else
+            nodePath = "node" -- Last resort
+        end
+    end
+    
+    -- Find gh executable  
+    local ghPath = "/opt/homebrew/bin/gh" -- Your gh path
+    
+    -- Always run from a known git directory to avoid context issues
+    local gitDir = os.getenv("HOME") .. "/code/pix/platform-cloud-django"
+    local command = "cd \"" .. gitDir .. "\" && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" \"" .. nodePath .. "\" \"" .. scriptPath .. "\" 2>&1"
+    
+    self.logger.i("Executing command: " .. command)
+    local output, status, exitType, rc = hs.execute(command)
+    
+    self.logger.i("Command completed:")
+    self.logger.i("  Status: " .. tostring(status))
+    self.logger.i("  Exit type: " .. tostring(exitType))  
+    self.logger.i("  RC: " .. tostring(rc))
+    self.logger.i("  Output type: " .. type(output))
+    self.logger.i("  Output: " .. tostring(output))
     
     if not status then
         menu:setTitle("❌ Error")
+        local errorMsg = "Unknown error"
+        if output then
+            if type(output) == "string" then
+                errorMsg = output
+            else
+                errorMsg = "Non-string output: " .. tostring(output)
+            end
+        end
+        
         menu:setMenu({
             { title = "Script execution failed", disabled = true },
+            { title = "Error: " .. errorMsg:sub(1, 50), disabled = true },
             { title = "" },
-            { title = "Check Hammerspoon console for details", disabled = true }
+            { title = "Debug", fn = function()
+                self.logger.i("Command: " .. command)
+                self.logger.i("Output: " .. tostring(output))
+                self.logger.i("Status: " .. tostring(status))
+            end }
         })
-        self.logger.e("Script execution failed: " .. (output or "no output"))
+        self.logger.e("Script execution failed")
+        self.logger.e("Command: " .. command)
+        self.logger.e("Output: " .. tostring(output))
+        self.logger.e("Status: " .. tostring(status))
         return
     end
     
