@@ -1,22 +1,26 @@
-# Hammerspoon GitHub PR Menu Bar
+# GitHubPRMenu.spoon
 
-This Hammerspoon configuration displays GitHub pull requests awaiting your review in the macOS menu bar.
+A Hammerspoon Spoon that displays GitHub pull requests awaiting your review in the macOS menu bar.
 
 ## Features
 
 - Shows PR count in menu bar (✓ No PRs or 🔍 X PRs)
 - Categorizes PRs as "Fresh Reviews" or "Re-requested"
 - Searches across all repositories you have access to
-- Auto-refreshes every hour
-- Manual refresh option
-- Quick link to GitHub review page
+- Auto-refreshes every hour (configurable)
+- Clickable PR URLs to open directly in browser
+- Manual refresh and quick GitHub access
+- Proper Hammerspoon Spoon packaging
 
 ## Project Files
 
-- `init.lua` - Basic Hammerspoon configuration
-- `enhanced-init.lua` - Advanced version with clickable PR URLs  
-- `list-prs-awaiting-my-review.js` - GitHub PR listing script
-- `pr-check-wrapper.js` - Directory-independent wrapper script
+- `GitHubPRMenu.spoon/` - Main Spoon package directory
+  - `init.lua` - Spoon implementation
+  - `list-prs-awaiting-my-review.js` - GitHub PR listing script
+- `install-spoon.sh` - Automated installation script
+- Legacy files (for reference):
+  - `init.lua` - Basic standalone configuration
+  - `enhanced-init.lua` - Advanced standalone configuration
 
 ## Prerequisites
 
@@ -29,32 +33,27 @@ This Hammerspoon configuration displays GitHub pull requests awaiting your revie
 ### Quick Install (Recommended)
 
 ```bash
-# Run the install script
-./install.sh
+# Run the Spoon install script
+./install-spoon.sh
 ```
 
 ### Manual Install
 
-1. **Copy all files to your Hammerspoon directory**:
+1. **Copy the Spoon to Hammerspoon**:
    ```bash
-   # Create Hammerspoon config directory if it doesn't exist
-   mkdir -p ~/.hammerspoon
+   # Create Spoons directory if it doesn't exist
+   mkdir -p ~/.hammerspoon/Spoons
    
-   # Copy the PR script (required)
-   cp list-prs-awaiting-my-review.js ~/.hammerspoon/
-   
-   # Option 1: Use basic configuration
-   cp init.lua ~/.hammerspoon/init.lua
-   
-   # Option 2: Use enhanced configuration (recommended)
-   cp enhanced-init.lua ~/.hammerspoon/init.lua
-   
-   # Option 3: If you already have a Hammerspoon config, append:
-   cat enhanced-init.lua >> ~/.hammerspoon/init.lua
+   # Copy the entire Spoon
+   cp -r GitHubPRMenu.spoon ~/.hammerspoon/Spoons/
    ```
 
-2. **The script paths are automatically detected**: 
-   The configuration will look for `list-prs-awaiting-my-review.js` in your `~/.hammerspoon` directory.
+2. **Add to your Hammerspoon configuration**:
+   Add this to your `~/.hammerspoon/init.lua`:
+   ```lua
+   hs.loadSpoon("GitHubPRMenu")
+   spoon.GitHubPRMenu:start()
+   ```
 
 3. **Reload Hammerspoon**: 
    - Open Hammerspoon app
@@ -67,22 +66,40 @@ This Hammerspoon configuration displays GitHub pull requests awaiting your revie
   - `🔍 X PRs` when you have PRs to review
 
 - Click the menu bar item to see:
-  - List of fresh PRs (never reviewed)
-  - List of re-requested PRs (previously reviewed)
+  - List of fresh PRs (never reviewed) - clickable
+  - List of re-requested PRs (previously reviewed) - clickable
   - Manual refresh option
   - Link to GitHub reviews page
+  - Copy summary to clipboard
 
-## Customization
+## Configuration
 
-You can modify these settings in `init.lua`:
+You can customize the Spoon behavior:
 
-- `refreshInterval`: Change update frequency (default: 3600 seconds = 1 hour)
-- `noPRsText`: Customize text shown when no PRs are pending
-- `hasPRsText`: Customize text pattern for PR count display
+```lua
+-- Load and start the Spoon
+hs.loadSpoon("GitHubPRMenu")
+
+-- Customize refresh interval (default: 3600 seconds = 1 hour)
+spoon.GitHubPRMenu:setRefreshInterval(1800)  -- 30 minutes
+
+-- Start monitoring
+spoon.GitHubPRMenu:start()
+```
+
+You can also modify the Spoon's properties directly:
+- `spoon.GitHubPRMenu.noPRsText` - Text shown when no PRs (default: "✓ No PRs")
+- `spoon.GitHubPRMenu.hasPRsText` - Text pattern for PR count (default: "🔍 %d PRs")
 
 ## Troubleshooting
 
 - Check Hammerspoon console for error messages
 - Ensure GitHub CLI is authenticated: `gh auth status`
-- Verify Node.js can run the PR script: `node /path/to/list-prs-awaiting-my-review.js`
-- Make sure the script path in `init.lua` is correct and accessible
+- Verify Node.js can run the PR script: `node ~/.hammerspoon/Spoons/GitHubPRMenu.spoon/list-prs-awaiting-my-review.js`
+- Check that the Spoon loaded: Look for "GitHubPRMenu" in Hammerspoon console
+
+## Spoon Methods
+
+- `spoon.GitHubPRMenu:start()` - Start PR monitoring
+- `spoon.GitHubPRMenu:stop()` - Stop PR monitoring  
+- `spoon.GitHubPRMenu:setRefreshInterval(seconds)` - Change refresh rate
