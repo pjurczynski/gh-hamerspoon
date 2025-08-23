@@ -5,7 +5,6 @@
 --- Download: https://github.com/your-username/GitHubPRMenu.spoon
 --- Author: Your Name
 --- License: MIT
-
 local obj = {}
 obj.__index = obj
 
@@ -20,8 +19,8 @@ obj.logger = hs.logger.new('GitHubPRMenu')
 
 -- Configuration
 obj.refreshInterval = 3600 -- 1 hour in seconds
-obj.noPRsText = "✓ No PRs"
-obj.hasPRsText = "🔍 %d PRs"
+obj.noPRsText = "✓"
+obj.hasPRsText = "☹︎ %d"
 
 -- Internal variables
 local menu = nil
@@ -38,7 +37,7 @@ function obj:parseScriptOutput(output)
     local reRequestedPRs = {}
     local currentSection = nil
     local currentPR = nil
-    
+
     for line in output:gmatch("[^\r\n]+") do
         if line:match("^PRs where you have never reviewed") then
             currentSection = "fresh"
@@ -49,7 +48,12 @@ function obj:parseScriptOutput(output)
         elseif line:match("^%- ") and currentSection then
             -- New PR entry
             local prTitle = line:match("^%- (.+)$")
-            currentPR = { title = prTitle, author = "", url = "", created = "" }
+            currentPR = {
+                title = prTitle,
+                author = "",
+                url = "",
+                created = ""
+            }
         elseif line:match("^  Author: ") and currentPR then
             currentPR.author = line:match("^  Author: (.+)$")
         elseif line:match("^  Created: ") and currentPR then
@@ -65,22 +69,18 @@ function obj:parseScriptOutput(output)
             currentPR = nil
         end
     end
-    
+
     return freshPRs, reRequestedPRs
 end
 
 function obj:updatePRMenu()
     local scriptPath = spoonPath .. "/list-prs-awaiting-my-review.js"
-    
+
     -- Find node executable (try common locations)
     local nodePath = nil
-    local nodePaths = {
-        "/usr/local/bin/node",
-        "/opt/homebrew/bin/node", 
-        os.getenv("HOME") .. "/.local/share/nvm/v22.2.0/bin/node",
-        "/usr/bin/node"
-    }
-    
+    local nodePaths = {"/usr/local/bin/node", "/opt/homebrew/bin/node",
+                       os.getenv("HOME") .. "/.local/share/nvm/v22.2.0/bin/node", "/usr/bin/node"}
+
     for _, path in ipairs(nodePaths) do
         local attr = hs.fs.attributes(path)
         if attr then
@@ -88,7 +88,7 @@ function obj:updatePRMenu()
             break
         end
     end
-    
+
     if not nodePath then
         -- Fallback: try to find node using which
         local whichOutput = hs.execute("which node")
@@ -98,24 +98,25 @@ function obj:updatePRMenu()
             nodePath = "node" -- Last resort
         end
     end
-    
+
     -- Find gh executable  
     local ghPath = "/opt/homebrew/bin/gh" -- Your gh path
-    
+
     -- Always run from a known git directory to avoid context issues
     local gitDir = os.getenv("HOME") .. "/code/pix/platform-cloud-django"
-    local command = "cd \"" .. gitDir .. "\" && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" \"" .. nodePath .. "\" \"" .. scriptPath .. "\" 2>&1"
-    
+    local command = "cd \"" .. gitDir .. "\" && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" \"" .. nodePath ..
+                        "\" \"" .. scriptPath .. "\" 2>&1"
+
     self.logger.i("Executing command: " .. command)
     local output, status, exitType, rc = hs.execute(command)
-    
+
     self.logger.i("Command completed:")
     self.logger.i("  Status: " .. tostring(status))
-    self.logger.i("  Exit type: " .. tostring(exitType))  
+    self.logger.i("  Exit type: " .. tostring(exitType))
     self.logger.i("  RC: " .. tostring(rc))
     self.logger.i("  Output type: " .. type(output))
     self.logger.i("  Output: " .. tostring(output))
-    
+
     if not status then
         menu:setTitle("❌ Error")
         local errorMsg = "Unknown error"
@@ -126,94 +127,121 @@ function obj:updatePRMenu()
                 errorMsg = "Non-string output: " .. tostring(output)
             end
         end
-        
-        menu:setMenu({
-            { title = "Script execution failed", disabled = true },
-            { title = "Error: " .. errorMsg:sub(1, 50), disabled = true },
-            { title = "" },
-            { title = "Debug", fn = function()
+
+        menu:setMenu({{
+            title = "Script execution failed",
+            disabled = true
+        }, {
+            title = "Error: " .. errorMsg:sub(1, 50),
+            disabled = true
+        }, {
+            title = ""
+        }, {
+            title = "Debug",
+            fn = function()
                 self.logger.i("Command: " .. command)
                 self.logger.i("Output: " .. tostring(output))
                 self.logger.i("Status: " .. tostring(status))
-            end }
-        })
+            end
+        }})
         self.logger.e("Script execution failed")
         self.logger.e("Command: " .. command)
         self.logger.e("Output: " .. tostring(output))
         self.logger.e("Status: " .. tostring(status))
         return
     end
-    
+
     local freshPRs, reRequestedPRs = self:parseScriptOutput(output)
     local totalPRs = #freshPRs + #reRequestedPRs
-    
+
     -- Update menu bar title
     if totalPRs == 0 then
         menu:setTitle(self.noPRsText)
     else
         menu:setTitle(string.format(self.hasPRsText, totalPRs))
     end
-    
+
     -- Build menu items
     local menuItems = {}
-    
+
     if totalPRs == 0 then
-        table.insert(menuItems, { title = "No PRs awaiting review", disabled = true })
+        table.insert(menuItems, {
+            title = "No PRs awaiting review",
+            disabled = true
+        })
     else
         -- Add fresh PRs section
         if #freshPRs > 0 then
-            table.insert(menuItems, { title = "🆕 Fresh Reviews (" .. #freshPRs .. ")", disabled = true })
+            table.insert(menuItems, {
+                title = "🆕 Fresh Reviews (" .. #freshPRs .. ")",
+                disabled = true
+            })
             for _, pr in ipairs(freshPRs) do
                 local displayText = string.format("%s (by %s)", pr.title, pr.author)
                 if #displayText > 60 then
                     displayText = string.sub(displayText, 1, 57) .. "..."
                 end
-                table.insert(menuItems, { 
+                table.insert(menuItems, {
                     title = "  " .. displayText,
-                    fn = function() hs.execute("open '" .. pr.url .. "'") end
+                    fn = function()
+                        hs.execute("open '" .. pr.url .. "'")
+                    end
                 })
             end
             if #reRequestedPRs > 0 then
-                table.insert(menuItems, { title = "" }) -- separator
+                table.insert(menuItems, {
+                    title = ""
+                }) -- separator
             end
         end
-        
+
         -- Add re-requested PRs section  
         if #reRequestedPRs > 0 then
-            table.insert(menuItems, { title = "🔄 Re-requested (" .. #reRequestedPRs .. ")", disabled = true })
+            table.insert(menuItems, {
+                title = "🔄 Re-requested (" .. #reRequestedPRs .. ")",
+                disabled = true
+            })
             for _, pr in ipairs(reRequestedPRs) do
                 local displayText = string.format("%s (by %s)", pr.title, pr.author)
                 if #displayText > 60 then
                     displayText = string.sub(displayText, 1, 57) .. "..."
                 end
-                table.insert(menuItems, { 
+                table.insert(menuItems, {
                     title = "  " .. displayText,
-                    fn = function() hs.execute("open '" .. pr.url .. "'") end
+                    fn = function()
+                        hs.execute("open '" .. pr.url .. "'")
+                    end
                 })
             end
         end
     end
-    
+
     -- Add separator and actions
-    table.insert(menuItems, { title = "" })
-    table.insert(menuItems, { 
-        title = "🔄 Refresh Now", 
-        fn = function() self:updatePRMenu() end 
+    table.insert(menuItems, {
+        title = ""
     })
-    table.insert(menuItems, { 
-        title = "⚙️ Open GitHub Reviews", 
-        fn = function() hs.execute("open https://github.com/pulls/review-requested") end 
+    table.insert(menuItems, {
+        title = "🔄 Refresh Now",
+        fn = function()
+            self:updatePRMenu()
+        end
     })
-    table.insert(menuItems, { 
-        title = "📋 Copy Summary", 
-        fn = function() 
+    table.insert(menuItems, {
+        title = "⚙️ Open GitHub Reviews",
+        fn = function()
+            hs.execute("open https://github.com/pulls/review-requested")
+        end
+    })
+    table.insert(menuItems, {
+        title = "📋 Copy Summary",
+        fn = function()
             local summary = string.format("GitHub PRs: %d fresh, %d re-requested", #freshPRs, #reRequestedPRs)
             hs.pasteboard.setContents(summary)
-        end 
+        end
     })
-    
+
     menu:setMenu(menuItems)
-    
+
     self.logger.i("Updated - " .. totalPRs .. " PRs found across all repositories")
 end
 
@@ -230,13 +258,15 @@ function obj:start()
     if menu then
         self:stop()
     end
-    
+
     menu = hs.menubar.new()
     self:updatePRMenu()
-    
+
     -- Set up periodic refresh
-    timer = hs.timer.doEvery(self.refreshInterval, function() self:updatePRMenu() end)
-    
+    timer = hs.timer.doEvery(self.refreshInterval, function()
+        self:updatePRMenu()
+    end)
+
     self.logger.i("Started GitHub PR monitoring. Refresh interval: " .. self.refreshInterval .. "s")
     return self
 end
@@ -255,12 +285,12 @@ function obj:stop()
         timer:stop()
         timer = nil
     end
-    
+
     if menu then
         menu:delete()
         menu = nil
     end
-    
+
     self.logger.i("Stopped GitHub PR monitoring")
     return self
 end
@@ -278,7 +308,9 @@ function obj:setRefreshInterval(seconds)
     self.refreshInterval = seconds
     if timer then
         timer:stop()
-        timer = hs.timer.doEvery(self.refreshInterval, function() self:updatePRMenu() end)
+        timer = hs.timer.doEvery(self.refreshInterval, function()
+            self:updatePRMenu()
+        end)
     end
     self.logger.i("Refresh interval set to: " .. seconds .. "s")
     return self

@@ -10,10 +10,9 @@ function getMyLogin() {
   return run('gh api user --jq .login').trim();
 }
 
-function getPrList(repo) {
-  const repoArg = repo ? `--repo ${repo}` : '';
+function getPrList() {
   const json = run(
-    `gh pr list ${repoArg} --search 'review-requested:@me state:open' --json number,title,url,author,createdAt --limit 100`
+    `gh search prs --review-requested=@me --state=open --json number,title,url,author,createdAt,repository --limit 100`
   );
   return JSON.parse(json);
 }
@@ -25,15 +24,14 @@ function getPrReviewInfo(prNumber, repo) {
 }
 
 function main() {
-  const repo = process.argv[2];
   const me = getMyLogin();
-  const prs = getPrList(repo);
+  const prs = getPrList();
   const reRequested = [];
   const fresh = [];
 
   for (const pr of prs) {
-    const { number, title, url, author, createdAt } = pr;
-    const prInfo = getPrReviewInfo(number, repo);
+    const { number, title, url, author, createdAt, repository } = pr;
+    const prInfo = getPrReviewInfo(number, repository.nameWithOwner);
     const reviewed = (prInfo.latestReviews || []).some(r => r.author && r.author.login === me);
     const requested = (prInfo.reviewRequests || []).some(r => r.login === me);
     const prText = `- ${title}\n  Author: ${author.login}\n  Created: ${createdAt.split('T')[0]}\n  URL: ${url}\n`;
