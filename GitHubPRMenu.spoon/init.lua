@@ -74,6 +74,15 @@ function obj:parseScriptOutput(output)
 end
 
 function obj:updatePRMenu()
+    -- Show loading indicator
+    if menu then
+        menu:setTitle("🔄")
+        menu:setMenu({{
+            title = "Loading PRs...",
+            disabled = true
+        }})
+    end
+
     local scriptPath = spoonPath .. "/list-prs-awaiting-my-review.js"
 
     -- Find node executable (try common locations)
@@ -99,33 +108,37 @@ function obj:updatePRMenu()
         end
     end
 
-    -- Find gh executable  
-    local ghPath = "/opt/homebrew/bin/gh" -- Your gh path
+    self.logger.i("Starting async task with node: " .. nodePath)
 
-    -- Always run from a known git directory to avoid context issues
-    local gitDir = os.getenv("HOME") .. "/code/pix/platform-cloud-django"
-    local command = "cd \"" .. gitDir .. "\" && PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" \"" .. nodePath ..
-                        "\" \"" .. scriptPath .. "\" 2>&1"
+    -- Use hs.task for async execution
+    local task = hs.task.new(nodePath, function(exitCode, stdOut, stdErr)
+        self:handlePRMenuUpdate(exitCode, stdOut, stdErr)
+    end, {scriptPath})
 
-    self.logger.i("Executing command: " .. command)
-    local output, status, exitType, rc = hs.execute(command)
+    local env = task:environment()
+    env.PATH = "/opt/homebrew/bin:/usr/local/bin:" .. (os.getenv("PATH") or "")
 
-    self.logger.i("Command completed:")
-    self.logger.i("  Status: " .. tostring(status))
-    self.logger.i("  Exit type: " .. tostring(exitType))
-    self.logger.i("  RC: " .. tostring(rc))
-    self.logger.i("  Output type: " .. type(output))
-    self.logger.i("  Output: " .. tostring(output))
+    task:setEnvironment(env)
 
-    if not status then
+    -- Start the task
+    task:start()
+end
+
+function obj:handlePRMenuUpdate(exitCode, stdOut, stdErr)
+    self.logger.i("Task completed:")
+    self.logger.i("  Exit code: " .. tostring(exitCode))
+    self.logger.i("  StdOut type: " .. type(stdOut))
+    self.logger.i("  StdOut: " .. tostring(stdOut))
+    self.logger.i("  StdErr: " .. tostring(stdErr))
+
+    local output = stdOut or ""
+    local success = exitCode == 0
+
+    if not success then
         menu:setTitle("❌ Error")
-        local errorMsg = "Unknown error"
-        if output then
-            if type(output) == "string" then
-                errorMsg = output
-            else
-                errorMsg = "Non-string output: " .. tostring(output)
-            end
+        local errorMsg = stdErr or "Unknown error"
+        if errorMsg == "" then
+            errorMsg = "Exit code: " .. tostring(exitCode)
         end
 
         menu:setMenu({{
@@ -139,15 +152,15 @@ function obj:updatePRMenu()
         }, {
             title = "Debug",
             fn = function()
-                self.logger.i("Command: " .. command)
-                self.logger.i("Output: " .. tostring(output))
-                self.logger.i("Status: " .. tostring(status))
+                self.logger.i("Exit code: " .. tostring(exitCode))
+                self.logger.i("StdOut: " .. tostring(stdOut))
+                self.logger.i("StdErr: " .. tostring(stdErr))
             end
         }})
         self.logger.e("Script execution failed")
-        self.logger.e("Command: " .. command)
-        self.logger.e("Output: " .. tostring(output))
-        self.logger.e("Status: " .. tostring(status))
+        self.logger.e("Exit code: " .. tostring(exitCode))
+        self.logger.e("StdOut: " .. tostring(stdOut))
+        self.logger.e("StdErr: " .. tostring(stdErr))
         return
     end
 
