@@ -85,28 +85,7 @@ function obj:updatePRMenu()
 
     local scriptPath = spoonPath .. "/list-prs-awaiting-my-review.js"
 
-    -- Find node executable (try common locations)
-    local nodePath = nil
-    local nodePaths = {"/usr/local/bin/node", "/opt/homebrew/bin/node",
-                       os.getenv("HOME") .. "/.local/share/nvm/v22.2.0/bin/node", "/usr/bin/node"}
-
-    for _, path in ipairs(nodePaths) do
-        local attr = hs.fs.attributes(path)
-        if attr then
-            nodePath = path
-            break
-        end
-    end
-
-    if not nodePath then
-        -- Fallback: try to find node using which
-        local whichOutput = hs.execute("which node")
-        if whichOutput and whichOutput:match("^/") then
-            nodePath = whichOutput:gsub("%s+", "")
-        else
-            nodePath = "node" -- Last resort
-        end
-    end
+    local nodePath = hs.execute("sh -c 'which node'", true):gsub("%s+", "")
 
     self.logger.i("Starting async task with node: " .. nodePath)
 
