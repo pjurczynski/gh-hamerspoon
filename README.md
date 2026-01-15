@@ -11,6 +11,7 @@ A Hammerspoon Spoon that displays GitHub pull requests awaiting your review in t
 - Clickable PR URLs to open directly in browser
 - Manual refresh and quick GitHub access
 - Proper Hammerspoon Spoon packaging
+- Shows latest mentions in PRs
 
 ## Project Files
 
