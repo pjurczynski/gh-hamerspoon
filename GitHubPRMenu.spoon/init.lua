@@ -26,15 +26,42 @@ obj.hasPRsText = "☹︎ %d"
 local menu = nil
 local timer = nil
 local spoonPath = nil
+local previousMentionIds = {}
 
 function obj:init()
     spoonPath = hs.spoons.scriptPath()
     self.logger.i("GitHubPRMenu initialized from: " .. spoonPath)
 end
 
+function obj:markMentionAsRead(notificationId)
+    local scriptPath = spoonPath .. "/mark-notification-read.js"
+    local nodePath = hs.execute("sh -c 'which node'", true):gsub("%s+", "")
+
+    self.logger.i("Marking notification as read: " .. notificationId)
+
+    local task = hs.task.new(nodePath, function(exitCode, stdOut, stdErr)
+        if exitCode == 0 then
+            self.logger.i("Notification marked as read: " .. notificationId)
+            -- Refresh menu after marking as read
+            self:updatePRMenu()
+        else
+            self.logger.e("Failed to mark notification as read")
+            self.logger.e("Exit code: " .. tostring(exitCode))
+            self.logger.e("StdErr: " .. tostring(stdErr))
+        end
+    end, {scriptPath, notificationId})
+
+    local env = task:environment()
+    env.PATH = "/opt/homebrew/bin:/usr/local/bin:" .. (os.getenv("PATH") or "")
+    task:setEnvironment(env)
+
+    task:start()
+end
+
 function obj:parseScriptOutput(output)
     local freshPRs = {}
     local reRequestedPRs = {}
+    local mentionPRs = {}
     local currentSection = nil
     local currentPR = nil
 
@@ -43,7 +70,9 @@ function obj:parseScriptOutput(output)
             currentSection = "fresh"
         elseif line:match("^PRs where your review was re%-requested") then
             currentSection = "rerequested"
-        elseif line:match("^No fresh PRs") or line:match("^No PRs with re%-requested") then
+        elseif line:match("^PRs where you were mentioned") then
+            currentSection = "mentions"
+        elseif line:match("^No fresh PRs") or line:match("^No PRs with re%-requested") or line:match("^No unread mention") then
             currentSection = nil
         elseif line:match("^%- ") and currentSection then
             -- New PR entry
@@ -52,12 +81,21 @@ function obj:parseScriptOutput(output)
                 title = prTitle,
                 author = "",
                 url = "",
-                created = ""
+                created = "",
+                repo = "",
+                updated = "",
+                notificationId = ""
             }
         elseif line:match("^  Author: ") and currentPR then
             currentPR.author = line:match("^  Author: (.+)$")
         elseif line:match("^  Created: ") and currentPR then
             currentPR.created = line:match("^  Created: (.+)$")
+        elseif line:match("^  Repo: ") and currentPR then
+            currentPR.repo = line:match("^  Repo: (.+)$")
+        elseif line:match("^  Updated: ") and currentPR then
+            currentPR.updated = line:match("^  Updated: (.+)$")
+        elseif line:match("^  NotificationID: ") and currentPR then
+            currentPR.notificationId = line:match("^  NotificationID: (.+)$")
         elseif line:match("^  URL: ") and currentPR then
             currentPR.url = line:match("^  URL: (.+)$")
             -- PR is complete, add to appropriate section
@@ -65,12 +103,14 @@ function obj:parseScriptOutput(output)
                 table.insert(freshPRs, currentPR)
             elseif currentSection == "rerequested" then
                 table.insert(reRequestedPRs, currentPR)
+            elseif currentSection == "mentions" then
+                table.insert(mentionPRs, currentPR)
             end
             currentPR = nil
         end
     end
 
-    return freshPRs, reRequestedPRs
+    return freshPRs, reRequestedPRs, mentionPRs
 end
 
 function obj:updatePRMenu()
@@ -143,8 +183,23 @@ function obj:handlePRMenuUpdate(exitCode, stdOut, stdErr)
         return
     end
 
-    local freshPRs, reRequestedPRs = self:parseScriptOutput(output)
-    local totalPRs = #freshPRs + #reRequestedPRs
+    local freshPRs, reRequestedPRs, mentionPRs = self:parseScriptOutput(output)
+
+    -- Show notifications for new mentions
+    local currentMentionIds = {}
+    for _, mention in ipairs(mentionPRs) do
+        currentMentionIds[mention.notificationId] = true
+        if not previousMentionIds[mention.notificationId] then
+            hs.notify.new({
+                title = "GitHub Mention",
+                informativeText = mention.title,
+                subTitle = "in " .. mention.repo
+            }):send()
+        end
+    end
+    previousMentionIds = currentMentionIds
+
+    local totalPRs = #freshPRs + #reRequestedPRs + #mentionPRs
 
     -- Update menu bar title
     if totalPRs == 0 then
@@ -187,7 +242,7 @@ function obj:handlePRMenuUpdate(exitCode, stdOut, stdErr)
             end
         end
 
-        -- Add re-requested PRs section  
+        -- Add re-requested PRs section
         if #reRequestedPRs > 0 then
             table.insert(menuItems, {
                 title = "🔄 Re-requested (" .. #reRequestedPRs .. ")",
@@ -202,6 +257,32 @@ function obj:handlePRMenuUpdate(exitCode, stdOut, stdErr)
                     title = "  " .. displayText,
                     fn = function()
                         hs.execute("open '" .. pr.url .. "'")
+                    end
+                })
+            end
+            if #mentionPRs > 0 then
+                table.insert(menuItems, {
+                    title = ""
+                }) -- separator
+            end
+        end
+
+        -- Add mentions section
+        if #mentionPRs > 0 then
+            table.insert(menuItems, {
+                title = "💬 Mentions (" .. #mentionPRs .. ")",
+                disabled = true
+            })
+            for _, mention in ipairs(mentionPRs) do
+                local displayText = mention.title
+                if #displayText > 60 then
+                    displayText = string.sub(displayText, 1, 57) .. "..."
+                end
+                table.insert(menuItems, {
+                    title = "  " .. displayText,
+                    fn = function()
+                        self:markMentionAsRead(mention.notificationId)
+                        hs.execute("open '" .. mention.url .. "'")
                     end
                 })
             end
@@ -227,7 +308,7 @@ function obj:handlePRMenuUpdate(exitCode, stdOut, stdErr)
     table.insert(menuItems, {
         title = "📋 Copy Summary",
         fn = function()
-            local summary = string.format("GitHub PRs: %d fresh, %d re-requested", #freshPRs, #reRequestedPRs)
+            local summary = string.format("GitHub PRs: %d fresh, %d re-requested, %d mentions", #freshPRs, #reRequestedPRs, #mentionPRs)
             hs.pasteboard.setContents(summary)
         end
     })

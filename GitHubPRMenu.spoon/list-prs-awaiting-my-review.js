@@ -23,6 +23,24 @@ function getPrReviewInfo(prNumber, repo) {
   return JSON.parse(json);
 }
 
+function getUnreadMentions() {
+  const json = run('gh api notifications --jq "[.[] | select(.reason == \\"mention\\" and .unread == true)]"');
+  const notifications = JSON.parse(json);
+  return notifications.map(n => {
+    const apiUrl = n.subject.url;
+    const webUrl = apiUrl
+      .replace('https://api.github.com/repos/', 'https://github.com/')
+      .replace('/pulls/', '/pull/');
+    return {
+      id: n.id,
+      title: n.subject.title,
+      url: webUrl,
+      repoName: n.repository.full_name,
+      updatedAt: n.updated_at
+    };
+  });
+}
+
 function main() {
   const me = getMyLogin();
   const prs = getPrList();
@@ -54,6 +72,20 @@ function main() {
     for (const pr of fresh) console.log(pr);
   } else {
     console.log('\nNo fresh PRs awaiting your first review.');
+  }
+
+  const mentions = getUnreadMentions();
+  if (mentions.length > 0) {
+    console.log('\nPRs where you were mentioned (unread):');
+    for (const mention of mentions) {
+      console.log(`- ${mention.title}`);
+      console.log(`  Repo: ${mention.repoName}`);
+      console.log(`  Updated: ${mention.updatedAt.split('T')[0]}`);
+      console.log(`  URL: ${mention.url}`);
+      console.log(`  NotificationID: ${mention.id}`);
+    }
+  } else {
+    console.log('\nNo unread mention notifications.');
   }
 }
 
